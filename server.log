@@ -84,3 +84,23 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  ⚠ Fast Refresh had to perform a full reload due to a runtime error.
  ⚠ Fast Refresh had to perform a full reload due to a runtime error.
  ✓ Compiled in 0ms
+ ⨯ [Error: Objects are not valid as a React child (found: object with keys {count, multiplier, lastFoodTime, isActive}). If you meant to render a collection of children, use an array instead.] {
+  digest: '1534811387'
+}
+ GET / 500 in 1280ms
+ GET /favicon.ico 200 in 262ms
+ ⨯ [Error: Objects are not valid as a React child (found: object with keys {count, multiplier, lastFoodTime, isActive}). If you meant to render a collection of children, use an array instead.] {
+  digest: '1534811387'
+}
+ GET / 500 in 582ms
+ GET /favicon.ico 200 in 269ms
+ ✓ Compiled in 151ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 0ms
+ GET / 200 in 459ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 160ms
+ GET /favicon.ico?favicon.bf3c9292.ico 200 in 274ms
+ GET /favicon.ico?favicon.bf3c9292.ico 200 in 276ms

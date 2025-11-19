@@ -371,7 +371,7 @@ export default function SnakeGame() {
           </div>
           <div className="bg-slate-700 p-4 rounded-lg text-center">
             <p className="text-cyan-400 text-sm">Combo</p>
-            <p className="text-3xl font-bold text-yellow-400">{combo}</p>
+            <p className="text-3xl font-bold text-yellow-400">{combo.count}</p>
           </div>
           <div className="bg-slate-700 p-4 rounded-lg text-center">
             <p className="text-cyan-400 text-sm">হাই স্কোর</p>
