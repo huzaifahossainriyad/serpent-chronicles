@@ -199,7 +199,7 @@ export default function SnakeGame() {
           setScore((prev) => prev + 10 + comboBonus)
           playCombo()
           setFood(generateFood())
-          addLog('খাবার খাওয়া', `স্কোর: +${10 + comboBonus}, Combo: ${combo + 1}`)
+          addLog('খাবার খাওয়া', `স্কোর: +${10 + comboBonus}, Combo: ${combo.count + 1}`)
         } else {
           newSnake.pop()
         }
