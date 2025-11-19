@@ -116,3 +116,15 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  GET / 200 in 185ms
  GET / 200 in 237ms
  GET /favicon.ico?favicon.bf3c9292.ico 200 in 262ms
+ GET /favicon.ico?favicon.bf3c9292.ico 200 in 267ms
+ ✓ Compiled in 181ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 528ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 194ms
+ GET / 200 in 273ms
+ GET /favicon.ico?favicon.bf3c9292.ico 200 in 282ms

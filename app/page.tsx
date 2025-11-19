@@ -121,7 +121,7 @@ export default function SnakeGame() {
       }
     } while (
       snake.some((segment) => segment.x === newFood.x && segment.y === newFood.y) ||
-      aiSnake.some((segment) => segment.x === newFood.x && segment.y === newFood.y)
+      aiSnake.body.some((segment) => segment.x === newFood.x && segment.y === newFood.y)
     )
     return newFood
   }, [snake, aiSnake])
@@ -268,7 +268,7 @@ export default function SnakeGame() {
     })
 
     // Draw AI snake
-    aiSnake.forEach((segment, index) => {
+    aiSnake.body.forEach((segment, index) => {
       ctx.fillStyle = index === 0 ? '#3b82f6' : '#1e40af'
       ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
     })
