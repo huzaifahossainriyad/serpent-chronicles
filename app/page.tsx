@@ -124,7 +124,7 @@ export default function SnakeGame() {
       aiSnake.body.some((segment) => segment.x === newFood.x && segment.y === newFood.y)
     )
     return newFood
-  }, [snake, aiSnake])
+  }, [snake, aiSnake.body])
 
   // Add log entry
   const addLog = useCallback((event: string, details: string) => {
@@ -212,7 +212,7 @@ export default function SnakeGame() {
     }, 1000 / 60)
 
     return () => clearInterval(gameLoop)
-  }, [gameActive, gamePaused, nextDirection, food, difficulty, snake, aiSnake, combo, generateFood, handleGameOver, playFoodEaten, registerFoodEaten, getComboBonus, playCombo, addLog, updateAISnake])
+  }, [gameActive, gamePaused, nextDirection, food, difficulty, snake, aiSnake.body, combo, generateFood, handleGameOver, playFoodEaten, registerFoodEaten, getComboBonus, playCombo, addLog, updateAISnake])
 
   // Keyboard controls
   useEffect(() => {
@@ -272,7 +272,7 @@ export default function SnakeGame() {
       ctx.fillStyle = index === 0 ? '#3b82f6' : '#1e40af'
       ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
     })
-  }, [snake, food, aiSnake])
+  }, [snake, food, aiSnake.body])
 
   const startGame = () => {
     setGameActive(true)
