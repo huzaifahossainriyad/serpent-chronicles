@@ -67,3 +67,10 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  ⚠ Fast Refresh had to perform a full reload due to a runtime error.
  GET / 200 in 153ms
  GET /favicon.ico?favicon.bf3c9292.ico 200 in 266ms
+ GET / 200 in 128ms
+ GET / 200 in 210ms
+ GET / 200 in 143ms
+ GET / 200 in 167ms
+ GET / 200 in 139ms
+ GET / 200 in 133ms
+ GET / 200 in 159ms
