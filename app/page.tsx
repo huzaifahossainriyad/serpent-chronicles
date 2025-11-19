@@ -5,7 +5,9 @@ import { useAISnake } from './hooks/useAISnake'
 import { useCombo } from './hooks/useCombo'
 import { useTailPhysics } from './hooks/useTailPhysics'
 import { useSoundEffects } from './hooks/useSoundEffects'
+import { useCampaignMode } from './hooks/useCampaignMode'
 import SoundSettings from './components/SoundSettings'
+import CampaignMode from './components/CampaignMode'
 
 const GRID_SIZE = 30
 const CELL_SIZE = 20
@@ -93,62 +95,68 @@ export default function SnakeGame() {
   const [showLogs, setShowLogs] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [soundVolume, setSoundVolume] = useState(0.5)
+  const [showCampaign, setShowCampaign] = useState(false)
+  const [campaignLevelActive, setCampaignLevelActive] = useState<number | null>(null)
 
   // Hooks
   const { aiSnake, updateAISnake, stunAISnake, checkFoodCollision: aiCheckFood, checkPlayerCollision, growAISnake } = useAISnake(GRID_SIZE, CELL_SIZE)
   const { combo, registerFoodEaten, getComboBonus, reset: resetCombo } = useCombo()
   const { updateTailPhysics, getTailSegments } = useTailPhysics()
-  const soundEffects = useSoundEffects({ enabled: soundEnabled, volume: soundVolume })
+  const { playFoodEaten, playGameOver, playVictory, playCombo, playMenuClick } = useSoundEffects()
+  const { levels, completeLevel, getCurrentLevel, getProgress, resetCampaign } = useCampaignMode()
 
   // Load high score
   useEffect(() => {
-    const saved = localStorage.getItem('riyad_snakeHighScore')
+    const saved = localStorage.getItem('highScore')
     if (saved) setHighScore(parseInt(saved))
-  }, [])
-
-  // Add log entry
-  const addLog = useCallback((event: string, details: string) => {
-    const timestamp = new Date().toLocaleTimeString('bn-BD')
-    setLogs((prev) => [
-      ...prev,
-      { timestamp, event, details },
-    ].slice(-50))
   }, [])
 
   // Generate random food
   const generateFood = useCallback(() => {
     let newFood
-    let valid = false
-    while (!valid) {
+    do {
       newFood = {
         x: Math.floor(Math.random() * GRID_SIZE),
         y: Math.floor(Math.random() * GRID_SIZE),
       }
-      valid = !snake.some((s) => s.x === newFood.x && s.y === newFood.y) &&
-              !aiSnake.some((s) => s.x === newFood.x && s.y === newFood.y)
-    }
+    } while (
+      snake.some((segment) => segment.x === newFood.x && segment.y === newFood.y) ||
+      aiSnake.some((segment) => segment.x === newFood.x && segment.y === newFood.y)
+    )
     return newFood
   }, [snake, aiSnake])
+
+  // Add log entry
+  const addLog = useCallback((event: string, details: string) => {
+    const timestamp = new Date().toLocaleTimeString('bn-BD')
+    setLogs((prev) => [...prev, { timestamp, event, details }])
+  }, [])
 
   // Handle game over
   const handleGameOver = useCallback(() => {
     setGameActive(false)
-    soundEffects.playGameOver()
-    
-    const messageCategory = score < 10 ? 'veryBad' : score < 30 ? 'bad' : score < 50 ? 'okay' : score < 100 ? 'good' : 'excellent'
+    playGameOver()
+
+    const messageCategory =
+      score < 50 ? 'veryBad' : score < 100 ? 'bad' : score < 200 ? 'okay' : score < 500 ? 'good' : 'excellent'
     const messages = GAME_OVER_MESSAGES[messageCategory]
-    const message = messages[Math.floor(Math.random() * messages.length)]
-    setGameOverMessage(message)
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)]
+    setGameOverMessage(randomMessage)
 
     if (score > highScore) {
       setHighScore(score)
-      localStorage.setItem('riyad_snakeHighScore', score.toString())
-      soundEffects.playVictory()
-      addLog('🏆 নতুন হাই স্কোর', `${score} পয়েন্ট!`)
+      localStorage.setItem('highScore', score.toString())
+      playVictory()
     }
 
-    addLog('💀 গেম শেষ', `চূড়ান্ত স্কোর: ${score}`)
-  }, [score, highScore, soundEffects, addLog])
+    addLog('গেম ওভার', `স্কোর: ${score}, হাই স্কোর: ${Math.max(score, highScore)}`)
+
+    // Complete campaign level if active
+    if (campaignLevelActive) {
+      completeLevel(campaignLevelActive, score)
+      addLog('ক্যাম্পেইন', `লেভেল ${campaignLevelActive} সম্পূর্ণ হয়েছে। স্কোর: ${score}`)
+    }
+  }, [score, highScore, playGameOver, playVictory, addLog, campaignLevelActive, completeLevel])
 
   // Game loop
   useEffect(() => {
@@ -157,106 +165,80 @@ export default function SnakeGame() {
     const gameLoop = setInterval(() => {
       const now = Date.now()
       const speed = DIFFICULTY_SETTINGS[difficulty].speed
-      
       if (now - lastMoveTimeRef.current < speed) return
+
       lastMoveTimeRef.current = now
 
       setSnake((prevSnake) => {
-        const head = prevSnake[0]
-        const newHead = {
-          x: head.x + nextDirection.x,
-          y: head.y + nextDirection.y,
-        }
+        const newSnake = [...prevSnake]
+        const head = { ...newSnake[0] }
 
-        // Check boundaries
-        if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
+        head.x += nextDirection.x
+        head.y += nextDirection.y
+
+        // Wall collision
+        if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
           handleGameOver()
           return prevSnake
         }
 
-        // Check self collision
-        if (prevSnake.some((s) => s.x === newHead.x && s.y === newHead.y)) {
-          soundEffects.playCollision()
+        // Self collision
+        if (newSnake.some((segment) => segment.x === head.x && segment.y === head.y)) {
           handleGameOver()
           return prevSnake
         }
 
-        // Check AI collision
-        if (checkPlayerCollision(newHead)) {
-          soundEffects.playCollision()
-          handleGameOver()
-          return prevSnake
-        }
-
+        newSnake.unshift(head)
         setDirection(nextDirection)
-        let newSnake = [newHead, ...prevSnake]
 
-        // Check food collision
-        if (newHead.x === food.x && newHead.y === food.y) {
-          soundEffects.playFoodEaten()
+        // Food collision
+        if (head.x === food.x && head.y === food.y) {
+          playFoodEaten()
           registerFoodEaten()
-          const bonus = getComboBonus()
-          setScore((prev) => prev + 10 + bonus)
+          const comboBonus = getComboBonus()
+          setScore((prev) => prev + 10 + comboBonus)
+          playCombo()
           setFood(generateFood())
-          addLog('🍎 খাবার খাওয়া', `+${10 + bonus} পয়েন্ট (Combo: ${combo})`)
-          
-          if (bonus > 0) {
-            soundEffects.playCombo(combo)
-          }
+          addLog('খাবার খাওয়া', `স্কোর: +${10 + comboBonus}, Combo: ${combo + 1}`)
         } else {
-          newSnake = newSnake.slice(0, -1)
+          newSnake.pop()
         }
 
         return newSnake
       })
 
-      // Update AI snake
-      updateAISnake(food)
-    }, 16)
+      // Update AI
+      updateAISnake(food, snake)
+    }, 1000 / 60)
 
     return () => clearInterval(gameLoop)
-  }, [gameActive, gamePaused, difficulty, nextDirection, food, soundEffects, handleGameOver, addLog, registerFoodEaten, getComboBonus, combo, checkPlayerCollision, updateAISnake, generateFood])
+  }, [gameActive, gamePaused, nextDirection, food, difficulty, snake, aiSnake, combo, generateFood, handleGameOver, playFoodEaten, registerFoodEaten, getComboBonus, playCombo, addLog, updateAISnake])
 
-  // Handle keyboard input
+  // Keyboard controls
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === ' ') {
         e.preventDefault()
         if (gameActive) {
-          setGamePaused((prev) => !prev)
-          soundEffects.playMenuClick()
+          setGamePaused(!gamePaused)
+          playMenuClick()
         }
       }
 
-      const keyMap: Record<string, { x: number; y: number }> = {
-        ArrowUp: { x: 0, y: -1 },
-        w: { x: 0, y: -1 },
-        W: { x: 0, y: -1 },
-        ArrowDown: { x: 0, y: 1 },
-        s: { x: 0, y: 1 },
-        S: { x: 0, y: 1 },
-        ArrowLeft: { x: -1, y: 0 },
-        a: { x: -1, y: 0 },
-        A: { x: -1, y: 0 },
-        ArrowRight: { x: 1, y: 0 },
-        d: { x: 1, y: 0 },
-        D: { x: 1, y: 0 },
-      }
+      if (!gameActive) return
 
-      if (keyMap[e.key]) {
-        e.preventDefault()
-        const newDir = keyMap[e.key]
-        if (direction.x + newDir.x !== 0 || direction.y + newDir.y !== 0) {
-          setNextDirection(newDir)
-        }
-      }
+      const key = e.key.toLowerCase()
+      if (key === 'w' || e.key === 'ArrowUp') setNextDirection({ x: 0, y: -1 })
+      if (key === 's' || e.key === 'ArrowDown') setNextDirection({ x: 0, y: 1 })
+      if (key === 'a' || e.key === 'ArrowLeft') setNextDirection({ x: -1, y: 0 })
+      if (key === 'd' || e.key === 'ArrowRight') setNextDirection({ x: 1, y: 0 })
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [direction, gameActive, soundEffects])
+  }, [gameActive, gamePaused, playMenuClick])
 
-  // Draw game
+  // Canvas rendering
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -268,48 +250,31 @@ export default function SnakeGame() {
     ctx.fillStyle = '#0f172a'
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    // Draw grid
-    ctx.strokeStyle = '#1e293b'
-    ctx.lineWidth = 0.5
-    for (let i = 0; i <= GRID_SIZE; i++) {
-      ctx.beginPath()
-      ctx.moveTo(i * CELL_SIZE, 0)
-      ctx.lineTo(i * CELL_SIZE, GAME_HEIGHT)
-      ctx.stroke()
+    // Draw border
+    ctx.strokeStyle = '#06b6d4'
+    ctx.lineWidth = 2
+    ctx.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-      ctx.beginPath()
-      ctx.moveTo(0, i * CELL_SIZE)
-      ctx.lineTo(GAME_WIDTH, i * CELL_SIZE)
-      ctx.stroke()
-    }
+    // Draw food
+    ctx.fillStyle = '#ef4444'
+    ctx.beginPath()
+    ctx.arc(food.x * CELL_SIZE + CELL_SIZE / 2, food.y * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2)
+    ctx.fill()
 
     // Draw player snake
     snake.forEach((segment, index) => {
-      ctx.fillStyle = index === 0 ? '#00ff00' : '#00cc00'
+      ctx.fillStyle = index === 0 ? '#22c55e' : '#16a34a'
       ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
     })
 
     // Draw AI snake
     aiSnake.forEach((segment, index) => {
-      ctx.fillStyle = index === 0 ? '#0099ff' : '#0077cc'
+      ctx.fillStyle = index === 0 ? '#3b82f6' : '#1e40af'
       ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
     })
+  }, [snake, food, aiSnake])
 
-    // Draw food
-    ctx.fillStyle = '#ff0000'
-    ctx.beginPath()
-    ctx.arc(
-      food.x * CELL_SIZE + CELL_SIZE / 2,
-      food.y * CELL_SIZE + CELL_SIZE / 2,
-      CELL_SIZE / 2 - 2,
-      0,
-      Math.PI * 2
-    )
-    ctx.fill()
-  }, [snake, aiSnake, food])
-
-  const startGame = (diff: string) => {
-    setDifficulty(diff)
+  const startGame = () => {
     setGameActive(true)
     setGamePaused(false)
     setScore(0)
@@ -321,104 +286,149 @@ export default function SnakeGame() {
     setDirection({ x: 1, y: 0 })
     setNextDirection({ x: 1, y: 0 })
     setFood(generateFood())
-    setGameOverMessage('')
     resetCombo()
-    soundEffects.playMenuClick()
-    addLog('🎮 গেম শুরু', `ডিফিকাল্টি: ${DIFFICULTY_SETTINGS[diff].label}`)
+    setGameOverMessage('')
+    playMenuClick()
+    addLog('গেম শুরু', `ডিফিকাল্টি: ${DIFFICULTY_SETTINGS[difficulty].label}`)
+  }
+
+  const handleSelectCampaignLevel = (levelId: number) => {
+    setCampaignLevelActive(levelId)
+    setShowCampaign(false)
+    startGame()
+  }
+
+  if (showCampaign) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <div className="max-w-6xl mx-auto">
+          <button
+            onClick={() => setShowCampaign(false)}
+            className="mb-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded transition-all"
+          >
+            ← ফিরে যাও
+          </button>
+          <CampaignMode
+            levels={levels}
+            totalCoins={0}
+            onSelectLevel={handleSelectCampaignLevel}
+            onResetCampaign={resetCampaign}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-4xl md:text-5xl font-bold text-cyan-400 mb-2 drop-shadow-lg">
-            রিয়াদ সাপ গেম
-          </h1>
-          <p className="text-cyan-300 text-sm md:text-base">
-            Riyad's Snake Game - বাংলা ভার্সন
-          </p>
+          <h1 className="text-4xl font-bold text-cyan-400 mb-2">রিয়াদ সাপ গেম</h1>
+          <p className="text-cyan-300">Riyad's Snake Game - বাংলা ভার্সন</p>
         </div>
 
-        {/* Sound Settings */}
-        <div className="mb-6">
-          <SoundSettings
-            onSoundToggle={setSoundEnabled}
-            onVolumeChange={setSoundVolume}
-            initialEnabled={soundEnabled}
-            initialVolume={soundVolume}
-          />
-        </div>
+        {/* Difficulty Selection */}
+        {!gameActive && (
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-cyan-400 mb-4 text-center">📊 ডিফিকাল্টি লেভেল বেছে নিন</h2>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {Object.entries(DIFFICULTY_SETTINGS).map(([key, settings]) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setDifficulty(key)
+                    playMenuClick()
+                  }}
+                  className={`p-4 rounded-lg font-bold transition-all ${
+                    difficulty === key
+                      ? `bg-gradient-to-r ${settings.color} text-white shadow-lg`
+                      : 'bg-slate-700 text-cyan-300 hover:bg-slate-600'
+                  }`}
+                >
+                  ⚡{settings.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Game Canvas */}
-        <div className="bg-slate-900 rounded-lg border-2 border-cyan-500 p-4 mb-6 shadow-2xl">
+        <div className="bg-slate-800 p-4 rounded-lg border-2 border-cyan-500 mb-6">
           <canvas
             ref={canvasRef}
             width={GAME_WIDTH}
             height={GAME_HEIGHT}
-            className="w-full border border-cyan-400/30 rounded"
+            className="w-full border-2 border-cyan-400 rounded"
           />
         </div>
 
         {/* Score Display */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30">
-            <p className="text-cyan-400 text-sm font-mono">বর্তমান স্কোর</p>
-            <p className="text-3xl font-bold text-cyan-300">{score}</p>
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-slate-700 p-4 rounded-lg text-center">
+            <p className="text-cyan-400 text-sm">বর্তমান স্কোর</p>
+            <p className="text-3xl font-bold text-green-400">{score}</p>
           </div>
-          <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30">
-            <p className="text-cyan-400 text-sm font-mono">হাই স্কোর</p>
-            <p className="text-3xl font-bold text-yellow-400">{highScore}</p>
+          <div className="bg-slate-700 p-4 rounded-lg text-center">
+            <p className="text-cyan-400 text-sm">Combo</p>
+            <p className="text-3xl font-bold text-yellow-400">{combo}</p>
+          </div>
+          <div className="bg-slate-700 p-4 rounded-lg text-center">
+            <p className="text-cyan-400 text-sm">হাই স্কোর</p>
+            <p className="text-3xl font-bold text-purple-400">{highScore}</p>
           </div>
         </div>
 
-        {/* Combo Display */}
-        {combo > 0 && (
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-lg mb-6 text-center">
-            <p className="text-white font-bold text-lg">🔥 Combo: {combo}x</p>
-          </div>
-        )}
-
         {/* Game Over Message */}
-        {gameOverMessage && (
-          <div className="bg-red-900/50 border border-red-500 p-4 rounded-lg mb-6 text-center">
-            <p className="text-red-200 text-lg">{gameOverMessage}</p>
+        {!gameActive && gameOverMessage && (
+          <div className="bg-red-900/50 border-2 border-red-500 p-4 rounded-lg mb-6 text-center">
+            <p className="text-red-300 text-lg font-bold">{gameOverMessage}</p>
           </div>
         )}
 
         {/* Controls */}
-        {!gameActive ? (
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {Object.entries(DIFFICULTY_SETTINGS).map(([key, settings]) => (
-              <button
-                key={key}
-                onClick={() => startGame(key)}
-                className={`bg-gradient-to-br ${settings.color} p-6 rounded-lg font-bold text-white hover:shadow-lg transition-all transform hover:scale-105`}
-              >
-                <p className="text-2xl mb-2">⚡</p>
-                <p>{settings.label}</p>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="flex gap-4 mb-6">
-            <button
-              onClick={() => setGamePaused(!gamePaused)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all"
-            >
-              {gamePaused ? '▶️ চালু করো' : '⏸️ থামাও'}
-            </button>
-            <button
-              onClick={() => setGameActive(false)}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-all"
-            >
-              🔄 নতুন গেম
-            </button>
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <button
+            onClick={startGame}
+            disabled={gameActive}
+            className="bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition-all"
+          >
+            🎮 শুরু করো
+          </button>
+          <button
+            onClick={() => {
+              setGamePaused(!gamePaused)
+              playMenuClick()
+            }}
+            disabled={!gameActive}
+            className="bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition-all"
+          >
+            {gamePaused ? '▶️ চালু করো' : '⏸️ থামাও'}
+          </button>
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-all"
+          >
+            📋 লগ ({logs.length})
+          </button>
+          <button
+            onClick={() => {
+              setShowCampaign(true)
+              playMenuClick()
+            }}
+            className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg transition-all"
+          >
+            🎮 ক্যাম্পেইন
+          </button>
+        </div>
+
+        {/* Sound Settings */}
+        <div className="mb-6">
+          <SoundSettings />
+        </div>
 
         {/* Instructions */}
-        <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30 mb-6">
+        <div className="bg-slate-700 p-4 rounded-lg mb-6">
           <h3 className="text-cyan-400 font-bold mb-3">📋 নিয়ন্ত্রণ:</h3>
           <div className="grid grid-cols-2 gap-2 text-sm text-cyan-300">
             <p>⬆️ উপরে: Arrow Up / W</p>
@@ -430,41 +440,34 @@ export default function SnakeGame() {
         </div>
 
         {/* Tips */}
-        <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30 mb-6">
+        <div className="bg-slate-700 p-4 rounded-lg mb-6">
           <h3 className="text-cyan-400 font-bold mb-3">💡 টিপস:</h3>
           <ul className="text-sm text-cyan-300 space-y-1">
-            <li>🍎 খাবার (লাল বল) খান এবং সাপকে বড় করুন।</li>
-            <li>🚫 নিজের সাথে সংঘর্ষ এড়ান!</li>
-            <li>🤖 AI সাপের লেজ ছুঁলে সে স্টান হয়ে যায়।</li>
-            <li>🔥 দ্রুত খাবার খেলে Combo বোনাস পাবেন!</li>
+            <li>খাবার (লাল বল) খান এবং সাপকে বড় করুন।</li>
+            <li>নিজের সাথে সংঘর্ষ এড়ান!</li>
+            <li>AI সাপের লেজ ছুঁলে সে স্টান হয়ে যায়।</li>
+            <li>দ্রুত খাবার খেলে Combo বোনাস পাবেন!</li>
           </ul>
         </div>
 
         {/* Logs */}
-        <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30">
-          <button
-            onClick={() => setShowLogs(!showLogs)}
-            className="w-full text-cyan-400 font-bold mb-3 hover:text-cyan-300 transition-all"
-          >
-            📋 লগ ({logs.length})
-          </button>
-          {showLogs && (
-            <div className="max-h-40 overflow-y-auto space-y-1">
-              {logs.length === 0 ? (
-                <p className="text-cyan-400/50 text-sm">কোনো লগ নেই</p>
-              ) : (
-                logs.map((log, i) => (
-                  <div key={i} className="text-xs text-cyan-300 font-mono">
-                    <span className="text-cyan-500">[{log.timestamp}]</span> {log.event}: {log.details}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+        {showLogs && (
+          <div className="bg-slate-700 p-4 rounded-lg mb-6 max-h-64 overflow-y-auto">
+            <h3 className="text-cyan-400 font-bold mb-3">📊 গেম লগ:</h3>
+            {logs.length === 0 ? (
+              <p className="text-cyan-300 text-sm">কোনো লগ নেই</p>
+            ) : (
+              logs.map((log, index) => (
+                <div key={index} className="text-xs text-cyan-300 mb-2 border-b border-slate-600 pb-2">
+                  <span className="text-yellow-400">[{log.timestamp}]</span> <span className="text-green-400">{log.event}:</span> {log.details}
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
         {/* Footer */}
-        <div className="text-center mt-6 text-cyan-400/50 text-sm">
+        <div className="text-center text-cyan-400 text-sm">
           <p>রিয়াদ সাপ গেম - Riyad Snake Game</p>
         </div>
       </div>
