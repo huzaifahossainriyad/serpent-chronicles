@@ -208,7 +208,7 @@ export default function SnakeGame() {
       })
 
       // Update AI
-      updateAISnake(food, snake)
+      updateAISnake(now, food, snake)
     }, 1000 / 60)
 
     return () => clearInterval(gameLoop)
