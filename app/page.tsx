@@ -212,7 +212,7 @@ export default function SnakeGame() {
     }, 1000 / 60)
 
     return () => clearInterval(gameLoop)
-  }, [gameActive, gamePaused, nextDirection, food, difficulty, snake, aiSnake.body, combo, generateFood, handleGameOver, playFoodEaten, registerFoodEaten, getComboBonus, playCombo, addLog, updateAISnake])
+  }, [gameActive, gamePaused, nextDirection, food, difficulty, snake, combo, generateFood, handleGameOver, playFoodEaten, registerFoodEaten, getComboBonus, playCombo, addLog, updateAISnake])
 
   // Keyboard controls
   useEffect(() => {
@@ -268,11 +268,13 @@ export default function SnakeGame() {
     })
 
     // Draw AI snake
-    aiSnake.body.forEach((segment, index) => {
-      ctx.fillStyle = index === 0 ? '#3b82f6' : '#1e40af'
-      ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
-    })
-  }, [snake, food, aiSnake.body])
+    if (aiSnake && aiSnake.body && Array.isArray(aiSnake.body)) {
+      aiSnake.body.forEach((segment, index) => {
+        ctx.fillStyle = index === 0 ? '#3b82f6' : '#1e40af'
+        ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
+      })
+    }
+  }, [snake, food, aiSnake])
 
   const startGame = () => {
     setGameActive(true)
